@@ -1,5 +1,5 @@
 from app.services.sending_generation_request import send_request
-from app.services.prompt_generator import generate_prompt_gemini
+from app.services.prompt_generator import generate_prompt_gemini, generate_prompt_openai
 import os
 from fastapi import HTTPException, APIRouter, Request, Form
 
@@ -25,7 +25,7 @@ def generate_promt(
     Generate Prompt based on user choices
     """
     try:
-        prompt = generate_prompt_gemini(
+        prompt = generate_prompt_openai(
             place=place,
             time=time,
             object=object,

@@ -24,19 +24,16 @@ def generate_prompt_openai(place: str, time: datetime, object: str, other: str) 
     - object or person is: {object}
     - other things along with the object or person: {other}
     """
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        print("❌ Error calling OpenAI API:", e)
-        return ""
+    response = openai_client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.7
+    )
+    return response.choices[0].message.content.strip()
+
 ###########################################################
 #                  GEMINI PROMPT
 ###########################################################
