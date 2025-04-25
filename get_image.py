@@ -5,8 +5,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)
 
-image_id = '5a6d32c1-bdf7-4929-a82e-c1f88aad2a96'  
- 
+image_id = '7b2ade1b-aee4-4565-b167-a33319d88df4'  # TODO: change this to image ID (the ID you got from previous request)
 connection = http.client.HTTPSConnection("cl.imagineapi.dev")
 headers = {
     'Authorization': f'Bearer {os.getenv('IMAGINE_DEV')}', 

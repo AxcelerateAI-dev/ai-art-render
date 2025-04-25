@@ -4,7 +4,7 @@ import json
 import os
 
 API_HOST = "cl.imagineapi.dev"
-API_AUTH = f"Bearer {os.getenv('IMAGINE_DEV')}"
+API_AUTH = f"Bearer {os.getenv('IMAGINE_DEV_API_KEY')}"
 
 def send_request(method, path, body=None, headers={}):
     conn = http.client.HTTPSConnection(API_HOST)

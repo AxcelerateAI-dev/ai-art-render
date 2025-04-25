@@ -1,20 +1,25 @@
-import requests
 import os
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)
-url = "https://cl.imagineapi.dev/items/images/"
-payload = {
-    "prompt": """
-A tall Maltese man in his 20s, wearing a casual hat and a sporty soccer jersey, standing confidently.
-Beside him, a young woman in her 20s with long, flowing red hair, wearing a vibrant floral dress, smiling gently.
-Bright daylight, natural setting, full-body view, cinematic style, ultra-realistic --chaos 40 --stylize 1000 --ar 16:9
-"""
+
+
+import http.client
+import json
+import pprint
+ 
+data = {
+    "prompt": "a pretty lady at the beach --ar 9:21 --chaos 40 --stylize 1000"
 }
+
 headers = {
-    'Authorization': f'Bearer {os.getenv('IMAGINE_DEV')}',
+    'Authorization': f'Bearer {os.getenv("IMAGINE_DEV")}',  # <<<< TODO: remember to change this
     'Content-Type': 'application/json'
 }
  
-response = requests.request("POST", url, headers=headers, json=payload)
+conn = http.client.HTTPSConnection("cl.imagineapi.dev")
+conn.request("POST", "/items/images/", body=json.dumps(data), headers=headers)
  
-print(response.text)
+response = conn.getresponse()
+response_data = json.loads(response.read().decode('utf-8'))
+ 
+pprint.pp(response_data)
