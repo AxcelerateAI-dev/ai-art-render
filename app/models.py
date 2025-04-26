@@ -38,7 +38,7 @@ class ImagineDevResponse(BaseModel):
     error:str|None
     id:str
     status:str
-    progress:str|None
+    progress:str|int|None
     prompt:str
     ref:str|None
     url:str|None

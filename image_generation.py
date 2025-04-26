@@ -12,7 +12,7 @@ data = {
 }
 
 headers = {
-    'Authorization': f"Bearer {os.getenv('IMAGINE_DEV')}",
+    'Authorization': f"Bearer {os.getenv('IMAGINE_DEV_API_KEY')}",
     'Content-Type': 'application/json'
 }
 

@@ -12,7 +12,7 @@ data = {
 }
 
 headers = {
-    'Authorization': f'Bearer {os.getenv("IMAGINE_DEV")}',  # <<<< TODO: remember to change this
+    'Authorization': f'Bearer {os.getenv("IMAGINE_DEV_API_KEY")}',  # <<<< TODO: remember to change this
     'Content-Type': 'application/json'
 }
  

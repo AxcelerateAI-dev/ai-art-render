@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)  # Load your OpenAI API key from .env file
 
 ###########################################################
-#                  GEMINI PROMPT
+#                  OPENAI PROMPT
 ###########################################################
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -25,7 +25,7 @@ def generate_prompt_openai(place: str, time: datetime, object: str, other: str) 
     - other things along with the object or person: {other}
     """
     response = openai_client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": user_prompt}
