@@ -2,19 +2,19 @@ from app.services.sending_generation_request import send_request
 from app.services.prompt_generator import generate_prompt_gemini, generate_prompt_openai
 import os
 from fastapi import HTTPException, APIRouter, Request, Form
-
 from app.models import (
-    PromptRequest, ImageStatus, GenerateImageResponse,
-    ImagineDevResponse, Places, UserChoices, Prompt
+    GenerateImageResponse,
+    ImagineDevResponse, Prompt
 )
-from app.utils import append_to_json_file, store_get_prompt
+from loguru import logger
+from app.utils import append_to_json_file
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)
 
 router = APIRouter()
 
 @router.post("/ask_user/", response_model=Prompt, name="Generate Prompt")
-def generate_promt(
+async def generate_prompt(
     request: Request,
     place:str= Form(..., description="The imaginary or real place."),
     time:str= Form(..., description="The time, era or both."),
@@ -25,22 +25,24 @@ def generate_promt(
     Generate Prompt based on user choices
     """
     try:
-        prompt = generate_prompt_openai(
+        prompt = generate_prompt_gemini(
             place=place,
             time=time,
             object=object,
             other=other
         )
+        logger.info(f"Generated prompt: {prompt['prompt']}")
         return Prompt(
             text=prompt['prompt']
         )
     except Exception as e:
+        logger.error(f"Error while prompt generation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 API_HOST = "cl.imagineapi.dev"
 API_AUTH = f"Bearer {os.getenv('IMAGINE_DEV_API_KEY')}"
 @router.post("/generate-image/", response_model=GenerateImageResponse, name="Send Image Generation Request")
-def generate_image(
+async def generate_image(
     prompt:str = Form(..., description="Prompt to midjourney for image generation")
     ):
     """
@@ -55,16 +57,19 @@ def generate_image(
     }
     try:
         response = send_request('POST', '/items/images/', data, headers)
+        logger.info(f"Image generation request submitted")
         return GenerateImageResponse(
             message="Image generation started.",
             id=response['data']['id'],
             status=response['data']['status']
         )
+        
     except Exception as e:
+        logger.error(f"Failed to send image generation request.")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/check-status/{image_id}", response_model=ImagineDevResponse, name="Check Status and Get Generated Images")
-def check_status(image_id:str):
+async def check_status(image_id:str):
     """
     Check Status and Get Generated Images
     """

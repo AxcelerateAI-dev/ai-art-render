@@ -9,12 +9,7 @@ async def lifespan(app: FastAPI):
     """
     # Configure logging
     logger.add("logs.log", rotation="1 MB", level="INFO")
-    logger.info("Starting FastAPI app...")
-
-
-    # logger.info("Configuring Gemini Model...")
-    # app.state.gemini_model = configure_genai()
 
     yield  # Yield control back to the application
 
-
+    logger.info("Shutting down FastAPI app...")

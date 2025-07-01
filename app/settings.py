@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
+from datetime import timezone
 
 class APISettings(BaseSettings):
+    TIME_ZONE:timezone = timezone.utc
     APP_VERSION: str = "0.0.1"
     APP_NAME: str = "AI Art Therapy"
     API_PREFIX: str = ""

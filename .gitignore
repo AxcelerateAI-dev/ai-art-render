@@ -174,3 +174,5 @@ cython_debug/
 .pypirc
 
 responses.json
+/test_website
+/test_scripts
