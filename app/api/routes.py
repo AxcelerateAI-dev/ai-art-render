@@ -19,6 +19,7 @@ async def generate_prompt(
     place:str= Form(..., description="The imaginary or real place."),
     time:str= Form(..., description="The time, era or both."),
     object:str= Form(..., description="The object, person, or other thing"),
+    action:str= Form(..., description="What are they doing?"),
     other:str= Form(..., description="The other object along with the main object"),
     ):
     """
@@ -29,6 +30,7 @@ async def generate_prompt(
             place=place,
             time=time,
             object=object,
+            action=action,
             other=other
         )
         logger.info(f"Generated prompt: {prompt['prompt']}")
