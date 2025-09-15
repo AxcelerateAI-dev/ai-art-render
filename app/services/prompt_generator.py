@@ -46,7 +46,7 @@ load_dotenv(override=True, dotenv_path='.env')
 
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-def generate_prompt_gemini(place: str, time: datetime, object: str, other: str) -> str:
+def generate_prompt_gemini(place: str, time: datetime, object: str, action: str, other: str) -> str:
     """
     Generate prompt using openai: for midjourney to generate images. 
 
@@ -68,6 +68,7 @@ def generate_prompt_gemini(place: str, time: datetime, object: str, other: str) 
             - the place is: {place}
             - the time is: {time}
             - object or person is: {object}
+            - object or person is performing: {action}
             - other things along with the object or person: {other}
             """)],
         )]
@@ -101,6 +102,7 @@ if __name__=="__main__":
     place="beach",
     time="sunset",
     object="white girl",
+    action="standing",
     other="coconut trees"
 
     ## openai prompt
@@ -117,6 +119,7 @@ if __name__=="__main__":
         place=place,
         time=time,
         object=object,
+        action=action,
         other=other
     )
 
