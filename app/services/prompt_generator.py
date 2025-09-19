@@ -46,6 +46,8 @@ load_dotenv(override=True, dotenv_path='.env')
 
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+#previous prompt: Write a detailed prompt for MidJourney image generation based on given scenarios. Provide detailed prompt only in text format.
+
 def generate_prompt_gemini(place: str, time: datetime, object: str, action: str, other: str) -> str:
     """
     Generate prompt using openai: for midjourney to generate images. 
@@ -80,7 +82,8 @@ def generate_prompt_gemini(place: str, time: datetime, object: str, action: str,
         response_mime_type="application/json",  # application/json, text/plain
         system_instruction=[
             types.Part.from_text(text="""
-        Write a detailed prompt for MidJourney image generation based on given scenarios. Provide detailed prompt only in text format.
+            Write a vivid MidJourney prompt based on the scenario, describing setting, mood, colors, textures, perspective, and artistic influences. Express style naturally in words (e.g., watercolor painting, cinematic lighting, cyberpunk aesthetic) without using --style. Use the same aspect ratio (e.g., --ar 16:9) for all prompts to keep image size consistent. Only provide the final prompt in plain text.
+
         
         ## Response Format
         {{
