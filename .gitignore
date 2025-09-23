@@ -176,3 +176,5 @@ cython_debug/
 responses.json
 /test_website
 /test_scripts
+
+prompts.txt
