@@ -1,129 +1,152 @@
-from openai import OpenAI
 import os
-from datetime import datetime
+import json
+import base64
+from google import genai
+from openai import OpenAI
+from google.genai import types
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=".env", override=True)  # Load your OpenAI API key from .env file
 
-###########################################################
-#                  OPENAI PROMPT
-###########################################################
+load_dotenv(override=True)
+gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+SYSTEM_INSTRUCTION_CREATE = """
+You are a creative assistant for AI art generation. Your task is to write a single, vivid MidJourney prompt based on a user's scenario.
+
+Instructions:
+1.  Synthesize all user inputs (place, time, object, action, style, other elements) into a coherent and descriptive paragraph.
+2.  Express the artistic style naturally within the description (e.g., "in the style of a baroque painting," "cinematic, dramatic lighting," "a vibrant pop-art aesthetic"). Do not use command-line flags like `--style`.
+3.  Always append the aspect ratio `--ar 16:9` at the very end of the prompt.
+4.  Your entire output must be a single JSON object in the format: {"prompt": "<your generated prompt text here>"}. Do not include any other text or explanations.
+"""
+
+SYSTEM_INSTRUCTION_UPDATE = """
+You are a creative assistant for AI art generation. Your task is to update a given MidJourney prompt based on the style and content of a reference image.
+
+Instructions:
+1.  Analyze the provided image for its artistic style, color palette, lighting, composition, and mood.
+2.  Read the `previous_prompt` to understand the user's original core idea.
+3.  Rewrite and enhance the `previous_prompt`, integrating the visual characteristics of the image. The new prompt should retain the subject of the original prompt but be heavily inspired by the visual style of the image.
+4.  Always append the aspect ratio `--ar 16:9` at the very end of the new prompt.
+5.  Your entire output must be a single JSON object in the format: {"prompt": "<your new, updated prompt text here>"}. Do not include any other text or explanations.
+"""
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def generate_prompt_openai(place: str, time: datetime, object: str, other: str) -> str:
+def generate_prompt_openai(
+    place: str = None,
+    time: str = None,
+    object: str = None,
+    action: str = None,
+    style: str = None,
+    other: str = None,
+    previous_prompt: str = None,
+    image_bytes: bytes | None = None,
+    mime_type: str | None = None
+) -> dict:
     """
-    Generate prompt using openai: for midjourney to generate images. 
+    Generates or updates a prompt using the OpenAI API.
+
+    - If text preferences (place, time, etc.) are provided, it creates a new prompt using a text model.
+    - If a previous_prompt and an image are provided, it updates the prompt using a vision model.
     """
-    system_instruction = """
-    Write a detailed prompt for MidJourney image generation based on given scenarios.
-    Provide detailed prompt only in text format.
-    """
-    user_prompt = f"""
-    - the place is: {place}
-    - the time is: {time}
-    - object or person is: {object}
-    - other things along with the object or person: {other}
-    """
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.7
-    )
-    return response.choices[0].message.content.strip()
-
-###########################################################
-#                  GEMINI PROMPT
-###########################################################
-import os
-import json
-from google import genai
-from google.genai import types
-from dotenv import load_dotenv
-load_dotenv(override=True, dotenv_path='.env')
-
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-#previous prompt: Write a detailed prompt for MidJourney image generation based on given scenarios. Provide detailed prompt only in text format.
-
-def generate_prompt_gemini(place: str, time: datetime, object: str, action: str, other: str) -> str:
-    """
-    Generate prompt using openai: for midjourney to generate images. 
-
-    Args:
-        place (str): the place
-        time (datetime): the time
-        object (str): the person or object
-        other (str): other things along with main object
-    
-    Returns:
-        prompt (str): the generated prompt for midjourney
-    """
-    
-    model = "gemini-2.0-flash-lite"  # gemini model name
-    contents = [
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=f"""
-            - the place is: {place}
-            - the time is: {time}
-            - object or person is: {object}
-            - object or person is performing: {action}
-            - other things along with the object or person: {other}
-            """)],
-        )]
-    generate_content_config = types.GenerateContentConfig(
-        temperature=1,
-        top_p=0.95,
-        top_k=40,
-        max_output_tokens=8192,
-        response_mime_type="application/json",  # application/json, text/plain
-        system_instruction=[
-            types.Part.from_text(text="""
-            Write a vivid MidJourney prompt based on the scenario, describing setting, mood, colors, textures, perspective, and artistic influences. Express style naturally in words (e.g., watercolor painting, cinematic lighting, cyberpunk aesthetic) without using --style. Use the same aspect ratio (e.g., --ar 16:9) for all prompts to keep image size consistent. Only provide the final prompt in plain text.
-
+    if previous_prompt and image_bytes:
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        messages = [
+            {"role": "system", "content": SYSTEM_INSTRUCTION_UPDATE},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Here is the previous prompt to update:\n\n{previous_prompt}"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
+                    }
+                ]
+            }
+        ]
         
-        ## Response Format
-        {{
-            "prompt": <prompt text here>
-        }}
-        """),
-        ],
+        model = "gpt-4.1-nano-2025-04-14"
+    else:
+        user_prompt_text = f"""
+            - place: {place}
+            - time: {time}
+            - object or person: {object}
+            - action: {action}
+            - artistic style: {style}
+            - other elements: {other}
+        """
+        
+        messages = [
+            {"role": "system", "content": SYSTEM_INSTRUCTION_CREATE},
+            {"role": "user", "content": user_prompt_text}
+        ]
+        
+        model = "gpt-4.1-nano-2025-04-14"
+
+    try:
+        response = openai_client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.8,
+            response_format={"type": "json_object"}
+        )
+        return json.loads(response.choices[0].message.content)
+    
+    except Exception as e:
+        print(f"An error occurred with the OpenAI API: {e}")
+        raise
+
+
+def generate_prompt_gemini(
+    place: str = None,
+    time: str = None,
+    object: str = None,
+    action: str = None,
+    style: str = None,
+    other: str = None,
+    previous_prompt: str = None,
+    image_bytes: bytes | None = None,
+    mime_type: str | None = None
+) -> dict:
+    """
+    Generates or updates a prompt using Gemini.
+    - If place, time, etc., are provided, it creates a new prompt.
+    - If previous_prompt and an image are provided, it updates the prompt.
+    """
+    model_name = "gemini-2.5-flash-lite"
+    parts = []
+    
+    if previous_prompt and image_bytes:
+        system_instruction = SYSTEM_INSTRUCTION_UPDATE
+        text_content = f"Here is the previous prompt to update:\n\n{previous_prompt}"
+        parts.append(types.Part.from_text(text=text_content))
+        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        parts.append(image_part)
+    else:
+        system_instruction = SYSTEM_INSTRUCTION_CREATE
+        text_prompt = f"""
+            - place: {place}
+            - time: {time}
+            - object or person: {object}
+            - action: {action}
+            - artistic style: {style}
+            - other elements: {other}
+        """
+        parts.append(types.Part.from_text(text=text_prompt))
+
+    contents = [types.Content(role="user", parts=parts)]
+    
+    generate_content_config = types.GenerateContentConfig(
+        temperature=1.0, top_p=0.95, top_k=40, max_output_tokens=8192,
+        system_instruction=[
+            types.Part.from_text(text=system_instruction)],
+        response_mime_type="application/json",
     )
+
     response = gemini_client.models.generate_content(
-        model=model,
+        model=model_name,
         contents=contents,
         config=generate_content_config,
     ).text
-    text = json.loads(response)
-    return text
 
-if __name__=="__main__":
-    ## inputs
-    place="beach",
-    time="sunset",
-    object="white girl",
-    action="standing",
-    other="coconut trees"
-
-    ## openai prompt
-    # prompt = generate_prompt_openai(
-    #     place=place,
-    #     time=time,
-    #     object=object,
-    #     other=other
-    # )
-    # print("OpenAi Prompt\n", prompt, "\n\n")
-
-    ## gemini prompt
-    prompt = generate_prompt_gemini(
-        place=place,
-        time=time,
-        object=object,
-        action=action,
-        other=other
-    )
-
-    print("Gemini Prompt\n", prompt['prompt'])
+    return json.loads(response)
