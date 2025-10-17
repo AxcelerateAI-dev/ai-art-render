@@ -1,6 +1,8 @@
 import magic
 import uuid
 import os
+import aiohttp
+import asyncio
 from app.services.prompt_generator import generate_prompt_gemini, generate_prompt_openai
 from app.services.sending_generation_request import send_generation_request, check_generation_status
 from fastapi import HTTPException, APIRouter, Form, UploadFile, File
@@ -13,6 +15,11 @@ from app.models import (
 from loguru import logger
 from app.utils import append_to_json_file
 from dotenv import load_dotenv
+
+from fastapi.responses import FileResponse
+from pydub import AudioSegment
+from tempfile import TemporaryDirectory
+
 
 load_dotenv(override=True)
 router = APIRouter()
@@ -106,4 +113,61 @@ async def check_status(image_id: str):
             append_to_json_file(response['data'])
         return ImagineDevResponse(**response['data'])
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/merge-audio/")
+async def merge_audio_files(urls: list[str] = Form(..., description="List of URLs of audio files to merge")):
+    """
+    Downloads multiple audio files from given URLs, merges them sequentially,
+    and returns the merged audio as a downloadable file.
+    """
+
+    if not urls:
+        raise HTTPException(status_code=400, detail="No URLs provided.")
+
+    async def download_audio(session, url, dest_path):
+        """Download a single audio file asynchronously."""
+        try:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=400, detail=f"Failed to download {url}")
+                with open(dest_path, "wb") as f:
+                    f.write(await response.read())
+                logger.info(f"Downloaded audio from {url} -> {dest_path}")
+                return dest_path
+        except Exception as e:
+            logger.error(f"Error downloading {url}: {e}")
+            raise HTTPException(status_code=500, detail=f"Error downloading {url}: {e}")
+
+    try:
+        with TemporaryDirectory() as temp_dir:
+            temp_files = []
+            async with aiohttp.ClientSession() as session:
+                tasks = []
+                for url in urls:
+                    temp_filename = os.path.join(temp_dir, f"{uuid.uuid4()}.mp3")
+                    tasks.append(download_audio(session, url, temp_filename))
+                temp_files = await asyncio.gather(*tasks)
+
+            # Merge all audio files
+            combined_audio = AudioSegment.empty()
+            for file_path in temp_files:
+                audio = AudioSegment.from_file(file_path)
+                combined_audio += audio
+
+            merged_filename = os.path.join(temp_dir, f"merged_{uuid.uuid4()}.mp3")
+            combined_audio.export(merged_filename, format="mp3")
+            logger.info(f"Merged audio saved to {merged_filename}")
+
+            # Return merged audio as downloadable response
+            return FileResponse(
+                merged_filename,
+                media_type="audio/mpeg",
+                filename="merged_audio.mp3",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
