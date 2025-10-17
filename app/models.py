@@ -6,17 +6,16 @@ from enum import Enum
 #######################################
 
 class Style(str, Enum):
-    cubism = "cubism"
-    futurism = "futurism"
-    realism = "realism"
-    impressionism = "impressionism"
-    surrealism = "surrealism"
-    abstract = "abstract"
-    expressionism = "expressionism"
-    pop_art = "pop_art"
-    minimalism = "minimalism"
-    baroque = "baroque"
-    other = "other"
+    PHOTOREALISTIC = "Photorealistic"
+    SURREALIST = "Surrealist"
+    VINTAGE_COMIC_BOOK = "Vintage Comic Book"
+    WATERCOLOUR = "Watercolour"
+    IMPRESSIONIST = "Impressionist"
+    CLAYMATION = "Claymation"
+    CUBISM = "Cubism"
+    FUTURISM = "Futurism"
+    BAROQUE = "Baroque"
+    OTHER = "Other"
 
 #######################################
 #           Response Models
