@@ -8,7 +8,7 @@ async def lifespan(app: FastAPI):
     """
     Lifespan context for the FastAPI app to manage startup and shutdown tasks.
     """
-    logger.add("logs.log", rotation="1 MB", level="INFO")
+    logger.add("logs.log", rotation="10 MB", level="INFO")
     
     yield
 
