@@ -27,13 +27,12 @@ from tempfile import TemporaryDirectory
 load_dotenv(override=True)
 router = APIRouter()
 
+# --- Constants ---
 ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-TEMP_IMAGE_DIR = "temp_images"
-
+ALLOWED_AUDIO_MIME_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3", "audio/x-wav", "audio/aac"]
 TEMP_AUDIO_BASE_DIR = "temp_audio_sessions"
-ALLOWED_AUDIO_MIME_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3", "audio/aac"] # Add more common audio types as needed
 
-
+# --- Routes ---
 @router.post("/ask_user/", response_model=Prompt, name="Generate Initial Prompt")
 async def generate_initial_prompt(
     place: str = Form(..., description="The imaginary or real place."),
@@ -121,30 +120,32 @@ async def check_status(image_id: str):
         return ImagineDevResponse(**response['data'])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@router.post("/upload-audio-to-session/", name="Upload Audio to Session")
-async def upload_audio_to_session(
-    session_id: str = Form(..., description="Unique identifier for the audio session."),
-    audio_file: UploadFile = File(..., description="Audio file to upload.")
-):
-    """
-    Uploads a single audio file and associates it with a session ID.
-    The file is saved in a session-specific temporary directory.
-    This endpoint can be called multiple times for the same session_id.
-    """
+
+async def download_audio_from_url(url: str) -> bytes:
+    """Asynchronously downloads audio content from a URL."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                content = await response.read()
+                logger.info(f"Successfully downloaded audio from {url}")
+                return content
+    except aiohttp.ClientError as e:
+        logger.error(f"Network or client error during download of {url}: {e}")
+        raise HTTPException(status_code=500, detail=f"Network or client error while downloading from URL.")
+
+def save_audio_to_session(session_id: str, file_content: bytes, original_filename: str):
+    """Saves audio content to a session directory after validation."""
     session_dir = os.path.join(TEMP_AUDIO_BASE_DIR, session_id)
     os.makedirs(session_dir, exist_ok=True)
 
-    file_content = await audio_file.read()
     mime_type = magic.from_buffer(file_content, mime=True)
-    
     if mime_type not in ALLOWED_AUDIO_MIME_TYPES:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Invalid audio file type. Allowed types are: {', '.join(ALLOWED_AUDIO_MIME_TYPES)}. Detected: {mime_type}"
         )
-    
-    original_filename = audio_file.filename
+
     _, extension = os.path.splitext(original_filename)
     if not extension:
         extension = ".mp3"
@@ -155,18 +156,36 @@ async def upload_audio_to_session(
     try:
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
-        logger.info(f"Audio file '{original_filename}' uploaded to session '{session_id}' at {file_path}")
-        return {"message": f"Audio file '{original_filename}' uploaded successfully for session '{session_id}'."}
+        logger.info(f"Audio file '{original_filename}' saved for session '{session_id}' at {file_path}")
     except Exception as e:
         logger.error(f"Error saving audio file for session '{session_id}': {e}")
-        if os.path.exists(session_dir):
-            try:
-                shutil.rmtree(session_dir)
-                logger.info(f"Cleaned up temporary audio session directory due to save error: {session_dir}")
-            except Exception as cleanup_e:
-                logger.error(f"Error during cleanup after save error for {session_dir}: {cleanup_e}")
-        raise HTTPException(status_code=500, detail=f"Error saving audio file: {e}")
+        raise HTTPException(status_code=500, detail="Error saving audio file.")
 
+@router.post("/upload-audio-file-to-session/", name="Upload Audio File to Session")
+async def upload_audio_file_to_session(
+    session_id: str = Form(..., description="Unique identifier for the audio session."),
+    audio_file: UploadFile = File(..., description="Audio file to upload."),
+):
+    """
+    Uploads a single audio file from your computer and associates it with a session ID.
+    """
+    file_content = await audio_file.read()
+    save_audio_to_session(session_id, file_content, audio_file.filename)
+    return {"message": f"Audio file '{audio_file.filename}' uploaded successfully for session '{session_id}'."}
+
+
+@router.post("/add-audio-url-to-session/", name="Add Audio URL to Session")
+async def add_audio_url_to_session(
+    session_id: str = Form(..., description="Unique identifier for the audio session."),
+    audio_url: str = Form(..., description="URL of an audio file to download and add."),
+):
+    """
+    Downloads a single audio file from a URL and associates it with a session ID.
+    """
+    file_content = await download_audio_from_url(audio_url)
+    original_filename = os.path.basename(audio_url.split('?')[0]) # Basic filename extraction
+    save_audio_to_session(session_id, file_content, original_filename)
+    return {"message": f"Audio from URL added successfully for session '{session_id}'."}
 
 @router.post("/merge-audio-by-session/", name="Merge Audio by Session")
 async def merge_audio_by_session(
@@ -174,16 +193,19 @@ async def merge_audio_by_session(
 ):
     """
     Finds all audio files for a given session ID, merges them sequentially,
-    and returns the merged file. All session files are then removed after the response is sent.
+    and returns the merged file. All session files are removed after the response is sent.
     """
     session_dir = os.path.join(TEMP_AUDIO_BASE_DIR, session_id)
     if not os.path.exists(session_dir) or not os.listdir(session_dir):
         raise HTTPException(status_code=404, detail=f"No audio files found for session ID '{session_id}'.")
-    supported_extensions = (".mp3", ".wav", ".ogg", ".aac")
+
+    supported_extensions = tuple(f".{ext.split('/')[-1].lower()}" for ext in ALLOWED_AUDIO_MIME_TYPES if '/' in ext)
     audio_files_in_dir = [f for f in os.listdir(session_dir) if f.lower().endswith(supported_extensions)]
+    
     if not audio_files_in_dir:
         raise HTTPException(status_code=404, detail=f"No supported audio files found for session ID '{session_id}'.")
-    audio_files = sorted([os.path.join(session_dir, f) for f in audio_files_in_dir])
+
+    audio_files = sorted([os.path.join(session_dir, f) for f in audio_files_in_dir], key=os.path.getctime)
 
     combined_audio = AudioSegment.empty()
     try:
@@ -193,29 +215,19 @@ async def merge_audio_by_session(
                 combined_audio += audio
             except Exception as e:
                 logger.warning(f"Could not load audio file {file_path} for session {session_id}: {e}. Skipping.")
+
         if combined_audio.duration_seconds == 0:
              raise HTTPException(status_code=400, detail=f"No audio data could be processed for session '{session_id}'.")
+
         merged_filename_final = f"merged_audio_{session_id}.mp3"
         merged_file_path = os.path.join(session_dir, merged_filename_final) 
-
         combined_audio.export(merged_file_path, format="mp3")
-        logger.info(f"Merged audio for session '{session_id}' created at {merged_file_path}")
+        
         task = BackgroundTask(shutil.rmtree, session_dir)
-        return FileResponse(
-            merged_file_path,
-            media_type="audio/mpeg",
-            filename=merged_filename_final,
-            background=task
-        )
-
-    except HTTPException:
-        raise
+        return FileResponse(merged_file_path, media_type="audio/mpeg", filename=merged_filename_final, background=task)
     except Exception as e:
         logger.error(f"Error merging audio for session '{session_id}': {e}")
         if os.path.exists(session_dir):
-            try:
-                shutil.rmtree(session_dir)
-                logger.info(f"Cleaned up temporary audio session directory due to error: {session_dir}")
-            except Exception as cleanup_e:
-                logger.error(f"Error during cleanup after merge error for {session_dir}: {cleanup_e}")
+            shutil.rmtree(session_dir)
         raise HTTPException(status_code=500, detail=f"Error merging audio files: {e}")
+
