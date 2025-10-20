@@ -180,3 +180,5 @@ responses.json
 prompts.txt
 
 /temp_images/
+/temp_audio_sessions/
+/temp_audio_sessions
