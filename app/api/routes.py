@@ -47,9 +47,9 @@ async def generate_initial_prompt(
     Generates an initial prompt based on user's text choices. No image is used here.
     """
     final_style = style.value
-    if style == Style.other and not custom_style:
+    if style == Style.OTHER and not custom_style:
         raise HTTPException(status_code=400, detail="custom_style is required when style is 'other'")
-    elif style == Style.other:
+    elif style == Style.OTHER:
         final_style = custom_style
     try:
         prompt_data = generate_prompt_openai(
