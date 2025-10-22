@@ -1,3 +1,4 @@
+import json
 import magic
 import uuid
 import os
@@ -134,11 +135,32 @@ async def download_audio_from_url(url: str) -> bytes:
         logger.error(f"Network or client error during download of {url}: {e}")
         raise HTTPException(status_code=500, detail=f"Network or client error while downloading from URL.")
 
-def save_audio_to_session(session_id: str, file_content: bytes, original_filename: str):
-    """Saves audio content to a session directory after validation."""
+def save_audio_to_session(session_id: str, file_content: bytes, original_filename: str, source_url: str = None):
+    """Saves audio content to a session directory after validation, prevents duplicate uploads."""
     session_dir = os.path.join(TEMP_AUDIO_BASE_DIR, session_id)
     os.makedirs(session_dir, exist_ok=True)
 
+    # Path for metadata tracking (URLs already used)
+    metadata_file = os.path.join(session_dir, "metadata.json")
+
+    # Load existing metadata (if any)
+    metadata = {"urls": []}
+    if os.path.exists(metadata_file):
+        try:
+            with open(metadata_file, "r") as f:
+                metadata = json.load(f)
+        except Exception:
+            logger.warning(f"Could not read metadata.json for session {session_id}, resetting it.")
+            metadata = {"urls": []}
+
+    # If a URL is provided, check for duplicates
+    if source_url and source_url in metadata["urls"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The provided URL has already been added for this session."
+        )
+
+    # Validate MIME type
     mime_type = magic.from_buffer(file_content, mime=True)
     if mime_type not in ALLOWED_AUDIO_MIME_TYPES:
         raise HTTPException(
@@ -146,6 +168,7 @@ def save_audio_to_session(session_id: str, file_content: bytes, original_filenam
             detail=f"Invalid audio file type. Allowed types are: {', '.join(ALLOWED_AUDIO_MIME_TYPES)}. Detected: {mime_type}"
         )
 
+    # Save audio file
     _, extension = os.path.splitext(original_filename)
     if not extension:
         extension = ".mp3"
@@ -157,6 +180,12 @@ def save_audio_to_session(session_id: str, file_content: bytes, original_filenam
         with open(file_path, "wb") as buffer:
             buffer.write(file_content)
         logger.info(f"Audio file '{original_filename}' saved for session '{session_id}' at {file_path}")
+
+        # Record the URL in metadata (if applicable)
+        if source_url:
+            metadata["urls"].append(source_url)
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f)
     except Exception as e:
         logger.error(f"Error saving audio file for session '{session_id}': {e}")
         raise HTTPException(status_code=500, detail="Error saving audio file.")
@@ -173,7 +202,6 @@ async def upload_audio_file_to_session(
     save_audio_to_session(session_id, file_content, audio_file.filename)
     return {"message": f"Audio file '{audio_file.filename}' uploaded successfully for session '{session_id}'."}
 
-
 @router.post("/add-audio-url-to-session/", name="Add Audio URL to Session")
 async def add_audio_url_to_session(
     session_id: str = Form(..., description="Unique identifier for the audio session."),
@@ -181,10 +209,11 @@ async def add_audio_url_to_session(
 ):
     """
     Downloads a single audio file from a URL and associates it with a session ID.
+    Prevents adding the same URL twice in the same session.
     """
     file_content = await download_audio_from_url(audio_url)
-    original_filename = os.path.basename(audio_url.split('?')[0]) # Basic filename extraction
-    save_audio_to_session(session_id, file_content, original_filename)
+    original_filename = os.path.basename(audio_url.split('?')[0]) or "audio.mp3"
+    save_audio_to_session(session_id, file_content, original_filename, source_url=audio_url)
     return {"message": f"Audio from URL added successfully for session '{session_id}'."}
 
 @router.post("/merge-audio-by-session/", name="Merge Audio by Session")
