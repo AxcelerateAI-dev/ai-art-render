@@ -125,6 +125,7 @@ async def check_status(image_id: str):
 async def download_audio_from_url(url: str) -> bytes:
     """Asynchronously downloads audio content from a URL."""
     try:
+        url = f"https:{url}"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 response.raise_for_status()
