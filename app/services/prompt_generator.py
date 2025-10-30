@@ -19,6 +19,16 @@ Instructions:
 4.  Your entire output must be a single JSON object in the format: {"prompt": "<your generated prompt text here>"}. Do not include any other text or explanations.
 """
 
+SYSTEM_INSTRUCTION_REF_IMAGE = """
+You are a creative assistant for AI art generation. Your task is to write a single, vivid MidJourney prompt based on a user's scenario.
+Instructions:
+1.  Analyze the provided Reference image for its artistic style, color palette, lighting, composition, and mood.
+2.  Synthesize all user inputs (place, time, object, action, style, other elements) into a coherent and descriptive paragraph.
+3.  Express the artistic style naturally within the description (e.g., "in the style of a baroque painting," "cinematic, dramatic lighting," "a vibrant pop-art aesthetic"). Do not use command-line flags like `--style`.
+4.  Always append the aspect ratio `--ar 16:9` at the very end of the prompt.
+5.  Your entire output must be a single JSON object in the format: {"prompt": "<your generated prompt text here>"}. Do not include any other text or explanations
+"""
+
 SYSTEM_INSTRUCTION_UPDATE = """
 You are a creative assistant for AI art generation. Your task is to update a given MidJourney prompt based on the style and content of a reference image.
 
@@ -49,7 +59,7 @@ def generate_prompt_openai(
     - If text preferences (place, time, etc.) are provided, it creates a new prompt using a text model.
     - If a previous_prompt and an image are provided, it updates the prompt using a vision model.
     """
-    if previous_prompt and image_bytes:
+    if (previous_prompt and image_bytes):
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         messages = [
             {"role": "system", "content": SYSTEM_INSTRUCTION_UPDATE},
@@ -66,6 +76,31 @@ def generate_prompt_openai(
         ]
         
         model = "gpt-4.1-nano-2025-04-14"
+    elif image_bytes and (not previous_prompt):
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        messages = [
+            {"role": "system", "content": SYSTEM_INSTRUCTION_REF_IMAGE},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"""
+                        - place: {place}
+                        - time: {time}
+                        - object or person: {object}
+                        - action: {action}
+                        - artistic style: {style}
+                        - other elements: {other}
+                    """},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}
+                    }
+                ]
+            }
+        ]
+        
+        model = "gpt-4.1-nano-2025-04-14"
+
     else:
         user_prompt_text = f"""
             - place: {place}
