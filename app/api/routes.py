@@ -44,6 +44,7 @@ async def generate_initial_prompt(
     other: str = Form(..., description="Other objects along with the main object."),
     custom_style: str = Form(None, description="Describe a custom style if 'other' is selected."),
 ):
+
     """
     Generates an initial prompt based on user's text choices. No image is used here.
     """
@@ -61,6 +62,44 @@ async def generate_initial_prompt(
         return Prompt(text=prompt_data['prompt'])
     except Exception as e:
         logger.error(f"Error during initial prompt generation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/ask_user_with_img/", response_model=Prompt, name="Generate Prompt with Image")
+async def generate_prompt_with_image(
+    place: str = Form(..., description="The imaginary or real place."),
+    time: str = Form(..., description="The time, era or both."),
+    object: str = Form(..., description="The object, person, or other thing."),
+    action: str = Form(..., description="What are they doing?"),
+    style: Style = Form(..., description="The style for the image."),
+    other: str = Form(..., description="Other objects along with the main object."),
+    custom_style: str = Form(None, description="Describe a custom style if 'other' is selected."),
+    ref_img: UploadFile = File(..., description="A reference image to inspire the new prompt.")
+):
+    """
+    Generates a prompt by analyzing a reference image.
+    """
+    image_bytes = await ref_img.read()
+    mime_type = magic.from_buffer(image_bytes, mime=True)
+    if mime_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Please upload a valid image. Detected: {mime_type}")
+
+    final_style = style.value
+    if style == Style.OTHER and not custom_style:
+        raise HTTPException(status_code=400, detail="custom_style is required when style is 'other'")
+    elif style == Style.OTHER:
+        final_style = custom_style
+
+    try:
+        prompt_data = generate_prompt_openai(
+            place=place, time=time, object=object,
+            action=action, style=final_style, other=other,
+            image_bytes=image_bytes,
+            mime_type=mime_type
+        )
+        logger.info(f"Generated prompt with image inspiration: {prompt_data['prompt']}")
+        return Prompt(text=prompt_data['prompt'])
+    except Exception as e:
+        logger.error(f"Error during prompt generation with image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/update-prompt/", response_model=Prompt, name="Update Prompt with Image")
