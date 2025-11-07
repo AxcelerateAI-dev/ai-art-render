@@ -24,12 +24,11 @@ async def transcribe_audio(file_path: str) -> str:
     try:
         with open(file_path, "rb") as audio_file:
             logger.info(f"Starting transcription for {file_path}...")
-            
-            # The new openai SDK versions handle file objects correctly
             transcription_response = await client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                response_format="text"
+                response_format="text",
+                language="en"
             )
             
             # For response_format="text", the result is a plain string
