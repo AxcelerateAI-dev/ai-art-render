@@ -3,8 +3,8 @@ import json
 import base64
 from google import genai
 from openai import OpenAI
-from google.genai import types
 from dotenv import load_dotenv
+from google.genai import types
 
 load_dotenv(override=True)
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))

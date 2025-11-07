@@ -42,3 +42,10 @@ class ImagineDevResponse(BaseModel):
 
 class Prompt(BaseModel):
     text: str
+
+class MergedAudioResponse(BaseModel):
+    message: str
+    session_id: str
+    merged_audio_filename: str
+    transcription: str
+    audio_data_base64: str = Field(..., description="The merged audio file, Base64 encoded.")
